@@ -97,15 +97,15 @@ class ModelRegistry:
         active_count = 0
 
         names = {
-            1: "IA Geral",
-            2: "IA Principal",
+            1: "IA Principal",
+            2: "IA Geral",
             3: "IA Multicategoria",
             4: "IA Face Detection"
         }
 
         weights = {
-            1: 1,
-            2: 6,
+            1: 10,
+            2: 1,
             3: 1,
             4: 1
         }

@@ -470,7 +470,7 @@ if (btnAnalisar) {
                 var containerPrincipal = document.getElementById('juradoPrincipalContainer');
                 var containerAuxiliares = document.getElementById('juradosAuxiliaresGrid');
 
-                var dadosPrincipal = bancada.modelos['modelo_2'];
+                var dadosPrincipal = bancada.modelos['modelo_1'];
                 var htmlPrincipal = '';
 
                 if (dadosPrincipal) {
@@ -505,14 +505,14 @@ if (btnAnalisar) {
                     htmlPrincipal += '  </div>';
                     htmlPrincipal += '  <div class="jurado-principal-nota-box">';
                     htmlPrincipal += '    <span class="jurado-principal-score" style="color: var(--text-muted)">--%</span>';
-                    htmlPrincipal += '    <span class="jurado-principal-peso">Peso: 6x</span>';
+                    htmlPrincipal += '    <span class="jurado-principal-peso">Peso: 10x</span>';
                     htmlPrincipal += '  </div>';
                     htmlPrincipal += '</div>';
                 }
                 containerPrincipal.innerHTML = htmlPrincipal;
 
                 var modelosAuxiliares = [
-                    { id: 'modelo_1', padrao: 'IA Geral' },
+                    { id: 'modelo_2', padrao: 'IA Geral' },
                     { id: 'modelo_3', padrao: 'IA Multicategoria' },
                     { id: 'modelo_4', padrao: 'IA Face Detection' }
                 ];
