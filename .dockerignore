@@ -1,0 +1,32 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.pytest_cache
+.coverage
+htmlcov
+.tox
+.venv
+venv
+env
+*.log
+*.sqlite3
+.git
+.gitignore
+README.md
+*.md
+htmls antigos
+projeto antigo
+iniciar.bat
+iniciar_academico.bat
+*.bat
+exiftool-13.59_64
+*.sqlite
+*.db
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store

@@ -1,0 +1,8 @@
+Flask
+numpy
+Pillow
+opencv-python-headless
+scikit-learn
+pandas
+joblib
+openpyxl
