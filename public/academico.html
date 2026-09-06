@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Kingambit: análise acadêmica de imagens com metadados EXIF, ELA, FFT, ruído e classificação estatística.">
+<meta name="theme-color" content="#fafaf9">
+<title>Kingambit | Análise Acadêmica</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<canvas id="antigravityCanvas"></canvas>
+
+<div class="topo">
+    <div class="topo-direito">
+        <button class="nav-link" id="btnModoNoturno" type="button" aria-label="Ativar modo noturno">
+            <svg id="svgModoNoturno" style="width: 14px; height: 14px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span id="textoModoNoturno">Modo Noturno</span>
+        </button>
+    </div>
+</div>
+
+<div class="conteudo">
+
+    <div class="introducao">
+        <h1>Kingambit</h1>
+        <p>Plataforma técnica de verificação de autenticidade contra manipulações de inteligência artificial.</p>
+    </div>
+
+    <div class="upload-area" id="uploadArea">
+        <div class="upload-icon-wrapper">
+            <svg class="upload-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"></path>
+            </svg>
+        </div>
+        <div class="upload-texto" id="uploadTexto">Arraste ou selecione uma imagem para <strong>Análise</strong></div>
+        <div class="upload-nome" id="uploadNome" style="display: none;"></div>
+        <input type="file" class="upload-input" id="uploadInput" accept="image/*">
+    </div>
+
+    <div class="botoes-container">
+        <button class="btn-pill-dark" id="btnAnalisar" disabled>
+            Iniciar Verificação
+        </button>
+    </div>
+
+    <div class="erro-msg" id="erroGeral">
+        <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span id="erroTexto"></span>
+    </div>
+
+    <div class="sucesso-msg" id="sucessoGeral" role="status" aria-live="polite">
+        <span id="sucessoTexto"></span>
+    </div>
+
+    <div class="carregando" id="carregando">
+        <div class="spinner-wrapper">
+            <div class="spinner"></div>
+        </div>
+    </div>
+
+    <div class="resultado-geral" id="resultadoGeral" style="display: none;">
+
+        <div class="card-premium" id="cardMetadados">
+            <h2 class="titulo-secao">
+                <span class="titulo-secao-esquerda">
+                    <svg class="secao-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                        <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                    Metadados Estruturais (ExifTool)
+                </span>
+                <div class="tooltip-container">
+                    <span class="ajuda-icone">?</span>
+                    <span class="tooltip-balao">Os metadados EXIF são gravados pela câmera ou editores. Revelam parâmetros do sensor físico ou vestígios de processamento sintético por software de IA.</span>
+                </div>
+            </h2>
+
+            <div class="abas-metadados">
+                <button class="aba-btn ativa" data-indice="0" onclick="trocarAbaMetadados(0)">Suspeitas de IA</button>
+                <button class="aba-btn" data-indice="1" onclick="trocarAbaMetadados(1)">Parâmetros da Câmera</button>
+                <button class="aba-btn" data-indice="2" onclick="trocarAbaMetadados(2)">Arquivo Completo</button>
+            </div>
+
+            <div class="conteudo-aba-metadados">
+                <div class="aba-painel ativa" id="abaPainelIa"></div>
+                <div class="aba-painel" id="abaPainelCamera"></div>
+                <div class="aba-painel" id="abaPainelOutros"></div>
+            </div>
+        </div>
+
+        <div class="card-premium" id="cardAnaliseCompleta">
+            <h2 class="titulo-secao">
+                <span class="titulo-secao-esquerda">
+                    <svg class="secao-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 22h4M12 18v4M4 18h16M12 2a4 4 0 0 0-4 4v12a4 4 0 0 0 4 4 4 4 0 0 0 4-4V6a4 4 0 0 0-4-4z"></path>
+                    </svg>
+                    Estatística e Classificação Física do Sinal
+                </span>
+            </h2>
+
+            <div class="bancada-ias-container">
+                <div class="bancada-gauge-box">
+                    <div class="gauge-wrapper">
+                        <svg class="gauge-svg" viewBox="0 0 100 100">
+                            <circle class="gauge-fundo" cx="50" cy="50" r="45"></circle>
+                            <circle class="gauge-progresso" id="gaugeProgresso" cx="50" cy="50" r="45" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                        </svg>
+                        <div class="gauge-centro">
+                            <span class="gauge-porcentagem" id="gaugeScore">0%</span>
+                            <span class="gauge-label">Veredito</span>
+                        </div>
+                    </div>
+                    <div class="bancada-status-badge" id="bancadaStatusBadge">Calculando...</div>
+                </div>
+
+                <div class="bancada-jurados">
+                    <h3 class="bancada-subtitulo">
+                        Painel de Decisão Multimodelo
+                        <div class="tooltip-container">
+                            <span class="ajuda-icone">?</span>
+                            <span class="tooltip-balao">Múltiplos modelos de redes neurais profundas ponderados por peso estatístico. A IA Principal possui peso 3x, a IA Geral 2,5x e as demais 1x cada.</span>
+                        </div>
+                    </h3>
+                    <div class="jurados-layout">
+                        <div id="juradoPrincipalContainer"></div>
+                        <div class="jurados-auxiliares-grid" id="juradosAuxiliaresGrid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="bancada-subtitulo" style="margin-top: 36px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                Filtros e Transformações Físicas de Sinal
+                <div class="tooltip-container">
+                    <span class="ajuda-icone">?</span>
+                    <span class="tooltip-balao">Filtros matemáticos que decompõem o erro de compressão, transições espaciais e ruído térmico para identificar descontinuidades ópticas.</span>
+                </div>
+            </h3>
+            <div class="mapas-forenses-grid">
+                <div class="mapa-card-premium">
+                    <div class="mapa-img-container" onclick="ampliarImagem(this)">
+                        <img id="mapaOriginal" src="" alt="Original">
+                    </div>
+                    <div class="mapa-info">
+                        <h4>Sinal Original</h4>
+                        <p>Imagem fornecida para análise.</p>
+                    </div>
+                </div>
+                <div class="mapa-card-premium">
+                    <div class="mapa-img-container" onclick="ampliarImagem(this)">
+                        <img id="mapaGradiente" src="" alt="Gradiente">
+                    </div>
+                    <div class="mapa-info">
+                        <h4>Mapa de Gradientes</h4>
+                        <p>Delineia transições e coerência de bordas.</p>
+                    </div>
+                </div>
+                <div class="mapa-card-premium">
+                    <div class="mapa-img-container" onclick="ampliarImagem(this)">
+                        <img id="mapaEla" src="" alt="ELA">
+                    </div>
+                    <div class="mapa-info">
+                        <h4>Compressão ELA</h4>
+                        <p>Diferença de compressão recomprimida.</p>
+                    </div>
+                </div>
+                <div class="mapa-card-premium">
+                    <div class="mapa-img-container" onclick="ampliarImagem(this)">
+                        <img id="mapaRuido" src="" alt="Ruído">
+                    </div>
+                    <div class="mapa-info">
+                        <h4>Ruído de Alta Frequência</h4>
+                        <p>Extração SRM do ruído do sensor físico.</p>
+                    </div>
+                </div>
+                <div class="mapa-card-premium">
+                    <div class="mapa-img-container" onclick="ampliarImagem(this)">
+                        <img id="mapaFft" src="" alt="FFT">
+                    </div>
+                    <div class="mapa-info">
+                        <h4>Espectro de Fourier (FFT)</h4>
+                        <p>Análise de frequências e padrões de grade.</p>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="bancada-subtitulo" style="margin-top: 36px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                Métricas Estatísticas da Amostra
+                <div class="tooltip-container">
+                    <span class="ajuda-icone">?</span>
+                    <span class="tooltip-balao">Estatísticas descritivas do sinal da imagem. Desvios severos em relação aos padrões de lentes ópticas normais geram alertas de anomalia.</span>
+                </div>
+            </h3>
+            <div class="metricas-forenses-grid" id="metricasForensesGrid"></div>
+
+            <h3 class="bancada-subtitulo" style="margin-top: 36px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+                Parecer Técnico Conclusivo
+                <div class="tooltip-container">
+                    <span class="ajuda-icone">?</span>
+                    <span class="tooltip-balao">Relatório forense de validação gerado de forma estruturada, consolidando as anomalias físicas e lógicas encontradas na amostra.</span>
+                </div>
+            </h3>
+            <div class="interpretacao-caixa-premium" id="interpretacaoCaixa">
+                <div class="interpretacao-resumo-caixa" id="interpretacaoResumo"></div>
+                <div class="conclusoes-lista" id="conclusoesLista"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-fundo" id="modalReviews">
+    <div class="modal-conteudo modal-conteudo-reviews">
+        <div class="modal-topo">
+            <span class="modal-titulo">Registro e Laudos de Auditoria Técnica</span>
+            <button class="modal-fechar" id="fecharModal">
+                <svg style="width: 16px; height: 16px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <input type="text" class="busca-reviews" id="buscaReviews" placeholder="Filtrar auditorias por nome do perito...">
+        <div id="listaReviews"></div>
+    </div>
+</div>
+
+<div class="modal-visualizador" id="modalVisualizador" onclick="fecharAmpliador()">
+    <span class="modal-visualizador-fechar">
+        <svg style="width: 24px; height: 24px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+    </span>
+    <img class="modal-visualizador-img" id="imagemAmpliada">
+</div>
+
+<footer class="site-footer">
+    <div class="footer-links">
+        <a href="/privacy">Política de Privacidade</a>
+        <a href="/terms">Termos de Serviço</a>
+        <span>© 2026 Kingambit</span>
+    </div>
+</footer>
+
+<script src="/js/background.js"></script>
+<script src="/js/main.js"></script>
+</body>
+</html>
