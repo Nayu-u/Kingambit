@@ -1,4 +1,15 @@
 var arquivoAtual = null;
+var analiseEmAndamento = false;
+var proximaAnalisePermitida = 0;
+var temporizadorBotao = null;
+
+function atualizarBotaoAnalise() {
+    clearTimeout(temporizadorBotao);
+    var segundos = Math.max(0, Math.ceil((proximaAnalisePermitida - Date.now()) / 1000));
+    btnAnalisar.disabled = analiseEmAndamento || segundos > 0 || !arquivoAtual;
+    btnAnalisar.textContent = analiseEmAndamento ? 'Analisando…' : segundos > 0 ? 'Aguarde ' + segundos + ' s' : 'Iniciar Verificação';
+    if (segundos > 0) temporizadorBotao = setTimeout(atualizarBotaoAnalise, 1000);
+}
 
 var uploadArea = document.getElementById('uploadArea');
 var uploadInput = document.getElementById('uploadInput');
@@ -38,6 +49,7 @@ if (uploadInput) {
 }
 
 function selecionarArquivo(arquivo) {
+    if (analiseEmAndamento) return;
     if (!arquivo || !arquivo.type || arquivo.type.indexOf('image/') !== 0) {
         mostrarErro('Selecione um arquivo de imagem válido.');
         return;
@@ -47,7 +59,7 @@ function selecionarArquivo(arquivo) {
     uploadNome.style.display = 'inline-flex';
     uploadArea.classList.add('com-arquivo');
     uploadTexto.textContent = 'Imagem original pronta. Selecione outro arquivo para alterar.';
-    btnAnalisar.disabled = false;
+    atualizarBotaoAnalise();
     esconderErro();
     mostrarSucesso('Imagem original pronta para análise.');
     resultadoGeral.style.display = 'none';
@@ -358,13 +370,20 @@ function atualizarGauge(score, bancada) {
 
 // O servico de analise pode estar reiniciando ou saindo da suspensao.
 async function enviarAnalise(fd, signal) {
-    for (var tentativa = 0; tentativa < 4; tentativa++) {
+    for (var tentativa = 0; tentativa < 3; tentativa++) {
         try {
             var resposta = await fetch('/analyze/full', { method: 'POST', body: fd, signal: signal });
             var texto = await resposta.text();
             var dados;
             try { dados = JSON.parse(texto); } catch (_) { dados = null; }
             if (resposta.ok && dados && dados.categorias && dados.bancada && dados.forense) return dados;
+            if (resposta.status === 429) {
+                var retryAfter = resposta.headers.get('Retry-After');
+                var espera = /^\d+$/.test(retryAfter || '') ? Number(retryAfter) * 1000 : Date.parse(retryAfter) - Date.now();
+                if (!Number.isFinite(espera) || espera <= 0) espera = 30000;
+                proximaAnalisePermitida = Date.now() + espera;
+                throw new Error('O serviço atingiu o limite temporário de análises. Aguarde ' + Math.ceil(espera / 1000) + ' segundos para tentar novamente.');
+            }
             if (resposta.status === 413) throw new Error('A imagem excede o limite de envio. Selecione uma imagem menor.');
             if (dados && dados.erro) throw new Error(dados.erro);
             if ([502, 503, 504].indexOf(resposta.status) === -1 && resposta.ok === false) {
@@ -373,8 +392,8 @@ async function enviarAnalise(fd, signal) {
         } catch (erro) {
             if (signal.aborted || erro.name !== 'TypeError') throw erro;
         }
-        if (tentativa < 3) {
-            await new Promise(function(resolve) { setTimeout(resolve, 3000 * (tentativa + 1)); });
+        if (tentativa < 2) {
+            await new Promise(function(resolve) { setTimeout(resolve, 5000 * (tentativa + 1)); });
             if (signal.aborted) throw new DOMException('Análise cancelada', 'AbortError');
         }
     }
@@ -383,7 +402,10 @@ async function enviarAnalise(fd, signal) {
 
 if (btnAnalisar) {
     btnAnalisar.addEventListener('click', function() {
-        if (!arquivoAtual) return;
+        if (!arquivoAtual || analiseEmAndamento || Date.now() < proximaAnalisePermitida) return;
+        analiseEmAndamento = true;
+        uploadInput.disabled = true;
+        atualizarBotaoAnalise();
         esconderErro();
         esconderSucesso();
         mostrarCarregando();
@@ -614,6 +636,12 @@ if (btnAnalisar) {
                 } else {
                     mostrarErro(err.message || 'Não foi possível concluir a análise. Tente novamente em instantes.');
                 }
+            })
+            .finally(function() {
+                clearTimeout(timeoutId);
+                analiseEmAndamento = false;
+                uploadInput.disabled = false;
+                atualizarBotaoAnalise();
             });
     });
 }
