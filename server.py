@@ -2,6 +2,9 @@ import io
 import os
 import logging
 import warnings
+import gc
+import ctypes
+from threading import Lock
 import webbrowser
 from functools import wraps
 from pathlib import Path
@@ -23,7 +26,7 @@ app = Flask(__name__)
 BASE_DIR = Path(__file__).parent.resolve()
 logger = logging.getLogger(__name__)
 MAX_IMAGE_BYTES = 25 * 1024 * 1024
-MAX_IMAGE_PIXELS = 50 * 1024 * 1024
+MAX_IMAGE_PIXELS = 12 * 1024 * 1024
 app.config["MAX_CONTENT_LENGTH"] = MAX_IMAGE_BYTES + 1024 * 1024
 Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -35,6 +38,29 @@ registry = ModelRegistry(BASE_DIR)
 registry.warmup()
 
 engine = ForensicsEngine()
+analysis_lock = Lock()
+
+def liberar_memoria() -> None:
+    gc.collect()
+    if os.name == "posix":
+        try:
+            ctypes.CDLL(None).malloc_trim(0)
+        except (AttributeError, OSError):
+            pass
+
+liberar_memoria()
+
+def uma_analise_por_vez(f: Callable[..., Any]) -> Callable[..., Any]:
+    @wraps(f)
+    def executar(*args: Any, **kwargs: Any) -> Any:
+        if not analysis_lock.acquire(blocking=False):
+            return jsonify({"erro": "Uma análise está em andamento. Aguarde alguns segundos."}), 503, {"Retry-After": "10"}
+        try:
+            return f(*args, **kwargs)
+        finally:
+            liberar_memoria()
+            analysis_lock.release()
+    return executar
 
 def require_file(f: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(f)
@@ -117,6 +143,7 @@ def adicionar_cabecalhos_resposta(response: Any) -> Any:
     return response
 
 @app.route("/analyze/quick", methods=["POST"])
+@uma_analise_por_vez
 @require_file
 def analyze_quick(conteudo: bytes, nome: str) -> Any:
     try:
@@ -134,6 +161,7 @@ def analyze_quick(conteudo: bytes, nome: str) -> Any:
         del conteudo
 
 @app.route("/analyze/deep", methods=["POST"])
+@uma_analise_por_vez
 @require_file
 def analyze_deep(conteudo: bytes, nome: str) -> Any:
     try:
@@ -163,6 +191,7 @@ def analyze_deep(conteudo: bytes, nome: str) -> Any:
         del conteudo
 
 @app.route("/analyze/full", methods=["POST"])
+@uma_analise_por_vez
 @require_file
 def analyze_full(conteudo: bytes, nome: str) -> Any:
     try:
