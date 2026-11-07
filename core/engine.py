@@ -7,14 +7,16 @@ from PIL import Image, ImageChops
 
 class ForensicsEngine:
     MAX_PIXELS = 1920 * 1080
+    MAX_MAP_SIZE = 768
 
     def __init__(self, ela_quality: int = 90, ela_amplification: int = 15) -> None:
+        cv2.setNumThreads(1)
         self.ela_quality = ela_quality
         self.ela_amplification = ela_amplification
 
     def _load_image(self, image_bytes: bytes) -> Image.Image:
         with Image.open(io.BytesIO(image_bytes)) as source:
-            source.thumbnail((1920, 1080), Image.Resampling.LANCZOS)
+            source.thumbnail((self.MAX_MAP_SIZE, self.MAX_MAP_SIZE), Image.Resampling.LANCZOS)
             return source.convert("RGB")
 
     def compute_ela(self, image_bytes: bytes) -> Tuple[bytes, float, float]:
@@ -176,6 +178,12 @@ class ForensicsEngine:
             scale = (self.MAX_PIXELS / float(width * height)) ** 0.5
             img = cv2.resize(img, (max(1, int(width * scale)), max(1, int(height * scale))), interpolation=cv2.INTER_AREA)
 
+        # Keep the model features at the same 256px preprocessing resolution.
+        img_256 = cv2.resize(img, (256, 256))
+        if max(img.shape[:2]) > self.MAX_MAP_SIZE:
+            scale = self.MAX_MAP_SIZE / float(max(img.shape[:2]))
+            img = cv2.resize(img, (max(1, int(img.shape[1] * scale)), max(1, int(img.shape[0] * scale))), interpolation=cv2.INTER_AREA)
+
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
         grad_b64_bytes, _, _ = self.compute_gradient_features(img)
@@ -203,7 +211,6 @@ class ForensicsEngine:
         ela_png_bytes, _, _ = self.compute_ela(image_bytes)
         ela_b64 = base64.b64encode(ela_png_bytes).decode("utf-8")
         
-        img_256 = cv2.resize(img, (256, 256))
         resized_bytes = cv2.imencode(".jpg", img_256)[1].tobytes()
         gray_256 = cv2.cvtColor(img_256, cv2.COLOR_BGR2GRAY)
         
