@@ -356,6 +356,31 @@ function atualizarGauge(score, bancada) {
     }
 }
 
+// O servico de analise pode estar reiniciando ou saindo da suspensao.
+async function enviarAnalise(fd, signal) {
+    for (var tentativa = 0; tentativa < 4; tentativa++) {
+        try {
+            var resposta = await fetch('/analyze/full', { method: 'POST', body: fd, signal: signal });
+            var texto = await resposta.text();
+            var dados;
+            try { dados = JSON.parse(texto); } catch (_) { dados = null; }
+            if (resposta.ok && dados && dados.categorias && dados.bancada && dados.forense) return dados;
+            if (resposta.status === 413) throw new Error('A imagem excede o limite de envio. Selecione uma imagem menor.');
+            if (dados && dados.erro) throw new Error(dados.erro);
+            if ([502, 503, 504].indexOf(resposta.status) === -1 && resposta.ok === false) {
+                throw new Error('O serviço recusou a análise (HTTP ' + resposta.status + '). Tente novamente.');
+            }
+        } catch (erro) {
+            if (signal.aborted || erro.name !== 'TypeError') throw erro;
+        }
+        if (tentativa < 3) {
+            await new Promise(function(resolve) { setTimeout(resolve, 3000 * (tentativa + 1)); });
+            if (signal.aborted) throw new DOMException('Análise cancelada', 'AbortError');
+        }
+    }
+    throw new Error('O serviço de análise está temporariamente indisponível. Aguarde um momento e tente novamente.');
+}
+
 if (btnAnalisar) {
     btnAnalisar.addEventListener('click', function() {
         if (!arquivoAtual) return;
@@ -368,15 +393,13 @@ if (btnAnalisar) {
         fd.append('file', arquivoAtual);
 
         var controller = new AbortController();
-        var timeoutId = setTimeout(function() { controller.abort(); }, 120000);
+        var timeoutId = setTimeout(function() { controller.abort(); }, 180000);
 
-        fetch('/analyze/full', { method: 'POST', body: fd, signal: controller.signal })
-            .then(function(r) { return r.json(); })
+        enviarAnalise(fd, controller.signal)
             .then(function(d) {
                 clearTimeout(timeoutId);
                 esconderCarregando();
                 if (d.erro) { mostrarErro(d.erro); return; }
-                mostrarSucesso('Análise concluída. Os resultados técnicos estão disponíveis abaixo.');
 
                 var cat = d.categorias;
 
@@ -576,17 +599,20 @@ if (btnAnalisar) {
                 }
                 divConclusoes.innerHTML = htmlConclusoes;
 
+                mostrarSucesso('Análise concluída. Os resultados técnicos estão disponíveis abaixo.');
                 resultadoGeral.style.display = 'block';
                 resultadoGeral.scrollIntoView({ behavior: 'smooth' });
             })
             .catch(function(err) {
                 clearTimeout(timeoutId);
                 esconderCarregando();
+                esconderSucesso();
+                resultadoGeral.style.display = 'none';
                 console.error(err);
                 if (err.name === 'AbortError') {
                     mostrarErro('A análise demorou demais e foi cancelada. Tente com uma imagem menor.');
                 } else {
-                    mostrarErro('Falha técnica de comunicação ou erro no processamento das transformações físicas.');
+                    mostrarErro(err.message || 'Não foi possível concluir a análise. Tente novamente em instantes.');
                 }
             });
     });
